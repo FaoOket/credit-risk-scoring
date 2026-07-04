@@ -3,3 +3,11 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 .DS_Store
+
+# Données Kaggle — licence restrictive, ne pas redistribuer
+data/cs-training.csv
+data/cs-test.csv
+data/credit_scoring_dataset.csv
+
+# Exports Power BI — dérivés du dataset, non versionnés
+data/export_powerbi_credit_scoring.csv

@@ -1,92 +1,113 @@
-# Scoring de risque crédit — Fintech
+# Scoring de risque crédit — *Give Me Some Credit* (Kaggle)
 
-Projet de data science pour prédire le risque de défaut de paiement de clients fintech.  
-Pipeline complet : génération des données → EDA → prétraitement → modèles ML → évaluation → export Power BI.
+Pipeline complet de machine learning sur des **données réelles** pour prédire
+le risque de défaut de paiement de clients fintech/bancaires.
 
 ---
 
 ## Contexte et objectif
 
-Une entreprise fintech souhaite automatiser l'évaluation du risque crédit de ses clients.  
-L'objectif est de prédire la variable binaire `default` (1 = défaut de paiement, 0 = remboursement normal) à partir de variables socio-démographiques et comportementales.
+Prédire la variable binaire `SeriousDlqin2yrs` (1 = incident de paiement grave dans les 2 ans,
+0 = aucun incident) à partir du profil financier d'un client.
+
+Il s'agit d'un problème classique de **scoring crédit**, utilisé par les banques et établissements
+de crédit pour décider d'accorder ou non un prêt, et à quel taux.
 
 ---
 
-## Dataset
+## Données réelles
 
-**Données synthétiques — 8 000 clients × 11 variables explicatives**
+**Source :** [Give Me Some Credit — Kaggle](https://www.kaggle.com/competitions/GiveMeSomeCredit/data)
+— dataset de référence du scoring crédit, utilisé en compétition internationale.
 
-Le jeu de données a été généré synthétiquement (`scripts/01_generate_data.py`) à partir de distributions statistiques réalistes (log-normale, bêta, exponentielle, Poisson) et d'un modèle logistique calibré sur des pratiques métier bancaires/fintech standard.
+> **Pour reproduire :** télécharger `cs-training.csv` depuis la page Kaggle ci-dessus
+> et le placer dans `data/cs-training.csv`. Le fichier n'est pas versionné
+> (licence Kaggle, redistribution non autorisée).
 
-> **Note importante :** Ce dataset ne correspond pas à un ancien fichier qui n'a pas pu être retrouvé. Il a été recréé de zéro à partir des statistiques disponibles et d'une logique métier réaliste. Les performances des modèles reflètent la séparabilité réelle de ces données synthétiques — elles n'ont pas été optimisées pour atteindre une AUC cible.
+**150 000 clients réels — taux de défaut : 6.68 %**
 
-| Variable | Type | Description |
-|---|---|---|
-| `age` | int | Âge du client (18–74 ans) |
-| `revenu_mensuel` | float | Revenu mensuel en € |
-| `anciennete_compte_mois` | int | Ancienneté du compte en mois |
-| `nb_transactions_mois` | int | Nombre de transactions par mois |
-| `montant_moyen_transaction` | float | Montant moyen d'une transaction en € |
-| `taux_endettement_pct` | float | Taux d'endettement en % |
-| `nb_incidents_paiement_12m` | int | Incidents de paiement sur 12 mois |
-| `montant_credit_demande` | float | Montant du crédit demandé en € |
-| `type_contrat` | str | Type de contrat (CDI / CDD / Indépendant / Sans emploi) |
-| `score_bureau_externe` | int | Score de crédit externe (324–850) |
-| `utilisation_carte_pct` | float | Taux d'utilisation de la carte de crédit en % |
-| `default` | int | **Cible** — 1 = défaut, 0 = remboursement |
+| Variable | Description |
+|---|---|
+| `RevolvingUtilizationOfUnsecuredLines` | Taux d'utilisation des lignes de crédit renouvelable |
+| `age` | Âge du client |
+| `NumberOfTime30-59DaysPastDueNotWorse` | Retards de paiement 30–59 jours (12–24 mois) |
+| `DebtRatio` | Ratio d'endettement (charges / revenus) |
+| `MonthlyIncome` | Revenu mensuel (€) — ~20 % de valeurs manquantes |
+| `NumberOfOpenCreditLinesAndLoans` | Nombre de crédits ouverts |
+| `NumberOfTimes90DaysLate` | Retards > 90 jours |
+| `NumberRealEstateLoansOrLines` | Nombre de crédits immobiliers |
+| `NumberOfTime60-89DaysPastDueNotWorse` | Retards de paiement 60–89 jours |
+| `NumberOfDependents` | Nombre de personnes à charge — ~2 % de valeurs manquantes |
 
-**Statistiques clés :**
-- Taux de défaut : **19.62 %** (1 570 défauts / 8 000 clients)
-- Split entraînement / test : 6 000 / 2 000 (75 % / 25 %, stratifié)
-- Graine fixe : `np.random.seed(42)` — résultats reproductibles
+---
+
+## Nettoyage des données
+
+Trois défauts classiques des données réelles corrigés avant modélisation :
+
+1. **Valeurs manquantes** — `MonthlyIncome` (~20 %) et `NumberOfDependents` (~2 %) :
+   imputées par la **médiane dans le pipeline** (aucune fuite de données vers le test).
+2. **Codes sentinelles 96/98** — colonnes de retards de paiement : valeurs techniques
+   sans signification → plafonnées à 20.
+3. **Valeurs extrêmes** — `RevolvingUtilizationOfUnsecuredLines` et `DebtRatio` :
+   plafonnées au **99ᵉ centile** pour neutraliser les saisies aberrantes.
+4. **Âge** : plancher à 18 ans.
 
 ---
 
 ## Résultats
 
-| Modèle | AUC (test) | AUC (cross-val 5-fold) | F1-score |
+| Modèle | AUC (test) | AUC (CV 5-fold) | F1-score |
 |---|---|---|---|
-| **Régression Logistique** | **0.6554** | **0.6818** | **0.3724** |
-| Random Forest | 0.6474 | 0.6684 | 0.3762 |
-| Gradient Boosting | 0.6430 | 0.6672 | 0.0917 |
+| **Gradient Boosting** *(retenu par AUC)* | **0.8676** | **0.8632** | 0.3019 |
+| Random Forest *(meilleur F1)* | 0.8646 | 0.8603 | **0.3301** |
+| Régression logistique | 0.8556 | 0.8506 | 0.3273 |
 | Baseline (classe majoritaire) | 0.5000 | 0.5000 | 0.0000 |
 
-**Meilleur modèle : Régression Logistique** — sélectionné selon l'AUC (test), avec un gain de +0.1554 par rapport à la baseline aléatoire.
+**Meilleur modèle : Gradient Boosting** — sélectionné selon l'AUC (test).
+Gain de **+0.3676** par rapport à la baseline aléatoire.
 
-> **À noter :** le Random Forest obtient légèrement le meilleur F1-score (0.3762 vs 0.3724 pour la Régression Logistique). En pratique, le choix entre les deux dépend de l'arbitrage métier : l'AUC mesure la qualité de classement global, le F1 reflète l'équilibre précision/rappel sur la classe minoritaire (défaut).
+> Le Random Forest obtient légèrement le meilleur F1-score (0.3301 vs 0.3019).
+> Le choix entre les deux dépend de l'arbitrage métier : AUC pour la qualité
+> de classement globale, F1 pour l'équilibre précision/rappel sur les défauts.
 
-Tous les modèles utilisent `class_weight="balanced"` pour compenser le déséquilibre de classes (~80/20).
+> **Rappel :** l'AUC est un score entre 0 (inversé) et **1 (parfait)**, 0,50 correspondant
+> au hasard pur. Ce n'est pas un pourcentage de bonnes réponses.
 
 ---
 
 ## Segmentation Power BI
 
-Les probabilités de défaut sont découpées en **3 niveaux de risque** par tertiles calculés sur le jeu d'entraînement uniquement (aucune fuite de données test).
+Les probabilités de défaut sont découpées en 3 niveaux de risque par **tertiles**
+calculés sur le jeu d'entraînement uniquement (aucune fuite vers le test) :
 
-| Segment | Seuil | Clients (test, n=2 000) |
-|---|---|---|
-| Faible risque | proba < 0.388 | 668 |
-| Risque moyen | 0.388 ≤ proba < 0.533 | 666 |
-| Risque élevé | proba ≥ 0.533 | 666 |
+| Segment | Clients test (n=37 500) |
+|---|---|
+| Faible risque | ≈ 12 480 |
+| Risque moyen | ≈ 12 457 |
+| Risque élevé | ≈ 12 563 |
 
-> Ces segments sont **relatifs** : ils classent les clients les uns par rapport aux autres sur ce dataset synthétique. Ils ne correspondent pas à des probabilités absolues de défaut calibrées.
+> Ces segments sont **relatifs** au portefeuille : ils classent les clients les uns
+> par rapport aux autres. Le seuil entre segments varie si le portefeuille change.
 
 ---
 
 ## Méthodologie
 
 ```
-Génération des données
+Données réelles (150 000 clients, Kaggle)
         ↓
-Analyse exploratoire (EDA) — distributions, corrélations, taux de défaut par segment
+Nettoyage — valeurs manquantes, codes 96/98, valeurs extrêmes
         ↓
-Prétraitement — StandardScaler (numériques) + OneHotEncoder (type_contrat)
+EDA — distribution de la cible, corrélations
         ↓
-Entraînement — 3 modèles + baseline, validation croisée 5-fold (entraînement uniquement)
+Prétraitement dans pipeline — imputation médiane + StandardScaler
         ↓
-Évaluation — AUC ROC, F1-score, matrice de confusion (jeu de test)
+Entraînement — 3 modèles + baseline, validation croisée 5-fold (train uniquement)
         ↓
-Export — probabilités + segments de risque → Power BI
+Évaluation — AUC ROC, F1-score, matrice de confusion (test)
+        ↓
+Export — probabilités + segments de risque → Power BI (non versionné)
 ```
 
 ---
@@ -96,13 +117,11 @@ Export — probabilités + segments de risque → Power BI
 ```
 credit-risk-scoring/
 ├── notebook/
-│   └── Scoring_Risque_Credit_Fintech.ipynb   # Pipeline complet
-├── scripts/
-│   └── 01_generate_data.py                   # Générateur du dataset synthétique
+│   └── Scoring_GiveMeSomeCredit.ipynb    # Pipeline complet avec sorties
 ├── data/
-│   ├── credit_scoring_dataset.csv            # Dataset (8 000 lignes)
-│   └── export_powerbi_credit_scoring.csv     # Export avec probabilités et segments
+│   └── cs-training.csv                   # À télécharger depuis Kaggle (non versionné)
 ├── figures/
+│   ├── fig_target.png
 │   ├── fig_correlation.png
 │   ├── fig_roc_curves.png
 │   ├── fig_confusion_matrix.png
@@ -119,11 +138,10 @@ credit-risk-scoring/
 # 1. Installer les dépendances
 pip install -r requirements.txt
 
-# 2. (Optionnel) Régénérer le dataset
-python scripts/01_generate_data.py
+# 2. Télécharger cs-training.csv depuis Kaggle → data/cs-training.csv
 
 # 3. Exécuter le notebook
-jupyter notebook notebook/Scoring_Risque_Credit_Fintech.ipynb
+jupyter notebook notebook/Scoring_GiveMeSomeCredit.ipynb
 ```
 
 ---
@@ -131,8 +149,8 @@ jupyter notebook notebook/Scoring_Risque_Credit_Fintech.ipynb
 ## Stack technique
 
 - **Python 3.10+**
-- **pandas / numpy** — manipulation des données
-- **scikit-learn** — Pipeline, ColumnTransformer, modèles ML, métriques
+- **pandas / numpy** — manipulation et nettoyage des données
+- **scikit-learn** — Pipeline, SimpleImputer, ColumnTransformer, modèles ML, métriques
 - **matplotlib / seaborn** — visualisations
 - **Jupyter Notebook** — environnement interactif
-- **Power BI** — dashboard de suivi du risque (données exportées en CSV)
+- **Power BI** — dashboard de suivi du risque (export CSV)
