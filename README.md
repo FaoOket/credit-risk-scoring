@@ -154,3 +154,4 @@ jupyter notebook notebook/Scoring_GiveMeSomeCredit.ipynb
 - **matplotlib / seaborn** — visualisations
 - **Jupyter Notebook** — environnement interactif
 - **Power BI** — dashboard de suivi du risque (export CSV)
+
